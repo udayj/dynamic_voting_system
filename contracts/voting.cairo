@@ -1,3 +1,4 @@
+#based on https://www.cairo-lang.org/docs/hello_cairo/voting.html
 %builtins output pedersen range_check ecdsa
 from starkware.cairo.common.alloc import alloc
 
