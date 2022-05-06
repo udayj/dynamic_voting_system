@@ -12,7 +12,7 @@ from starkware.cairo.common.signature import (
 )
 
 from starkware.cairo.common.dict import DictAccess
-from starkware.cairo.common.dict import dict_new
+from starkware.cairo.common.dict import dict_new, dict_read
 from starkware.cairo.common.dict import dict_update
 from starkware.cairo.common.math import assert_not_zero
 
@@ -26,7 +26,7 @@ struct VoteInfo:
     member voter_id : felt
     # The voter's public key.
     member pub_key : felt
-    # The vote (0 or 1).
+    # The vote (1 - yes or 2 - no, a value of 0 means not voted yet).
     member vote : felt
     # The ECDSA signature (r and s).
     member r : felt
@@ -39,17 +39,17 @@ struct VotingState:
     # The number of "No" votes.
     member n_no_votes : felt
     # Start and end pointers to a DictAccess array with the
-    # changes to the public key Merkle tree.
-    member public_key_tree_start : DictAccess*
-    member public_key_tree_end : DictAccess*
+    # changes to the vote Merkle tree.
+    member vote_tree_start : DictAccess*
+    member vote_tree_end : DictAccess*
 end
 
 
 struct BatchOutput:
     member n_yes_votes : felt
     member n_no_votes : felt
-    member public_keys_root_before : felt
-    member public_keys_root_after : felt
+    member vote_root_before : felt
+    member vote_root_after : felt
 end
 # Returns a list of VoteInfo instances representing the claimed
 # votes.
@@ -102,21 +102,21 @@ func verify_vote_signature{
     return ()
 end
 
-
+# initialize with prev vote history
 func init_voting_state() -> (state : VotingState):
     alloc_locals
     local state : VotingState
     assert state.n_yes_votes = 0
     assert state.n_no_votes = 0
     %{
-        public_keys = [
-            int(pub_key, 16)
-            for pub_key in program_input['public_keys']]
-        initial_dict = dict(enumerate(public_keys))
+        prev_votes = [
+            int(prev_vote)
+            for prev_vote in program_input['prev_state']]
+        initial_dict = dict(enumerate(prev_votes))
     %}
     let (dict : DictAccess*) = dict_new()
-    assert state.public_key_tree_start = dict
-    assert state.public_key_tree_end = dict
+    assert state.vote_tree_start = dict
+    assert state.vote_tree_end = dict
     return (state=state)
 end
 
@@ -136,33 +136,59 @@ func process_vote{
     verify_vote_signature(vote_info_ptr=vote_info_ptr)
 
     # Update the public key dict.
-    let public_key_tree_end = state.public_key_tree_end
-    dict_update{dict_ptr=public_key_tree_end}(
+    let vote_tree_end = state.vote_tree_end
+    let vote_tree_start = state.vote_tree_start
+    let (prev_vote) = dict_read{dict_ptr=vote_tree_end}(vote_info_ptr.voter_id)
+
+    # no change to state if prev vote is same as new vote
+    if prev_vote == vote_info_ptr.vote:
+        local new_state : VotingState
+        assert new_state.vote_tree_start = (
+            state.vote_tree_start)
+        assert new_state.vote_tree_end = (
+            vote_tree_end)
+        assert new_state.n_yes_votes=state.n_yes_votes
+        assert new_state.n_no_votes=state.n_no_votes
+        let state = new_state
+        return()
+    end
+
+    
+
+    dict_update{dict_ptr=vote_tree_end}(
         key=vote_info_ptr.voter_id,
-        prev_value=vote_info_ptr.pub_key,
-        new_value=0,
+        prev_value=prev_vote,
+        new_value=vote_info_ptr.vote,
     )
 
     # Generate the new state.
     local new_state : VotingState
-    assert new_state.public_key_tree_start = (
-        state.public_key_tree_start)
-    assert new_state.public_key_tree_end = (
-        public_key_tree_end)
+    assert new_state.vote_tree_start = (
+        state.vote_tree_start)
+    assert new_state.vote_tree_end = (
+        vote_tree_end)
 
     # Update the counters.
     tempvar vote = vote_info_ptr.vote
-    if vote == 0:
-        # Vote "No".
-        assert new_state.n_yes_votes = state.n_yes_votes
-        assert new_state.n_no_votes = state.n_no_votes + 1
-    else:
-        # Make sure that in this case vote=1.
-        assert vote = 1
-
+    if vote == 1:
         # Vote "Yes".
-        assert new_state.n_yes_votes = state.n_yes_votes + 1
-        assert new_state.n_no_votes = state.n_no_votes
+        if prev_vote == 0: # 1st vote
+            assert new_state.n_yes_votes = state.n_yes_votes + 1
+            assert new_state.n_no_votes = state.n_no_votes
+        else: # toggle vote
+            assert new_state.n_yes_votes = state.n_yes_votes + 1
+            assert new_state.n_no_votes = state.n_no_votes - 1
+        end
+    else:
+        
+        # Vote "No".
+        if prev_vote == 0: # 1st vote
+           assert new_state.n_yes_votes = state.n_yes_votes
+           assert new_state.n_no_votes = state.n_no_votes + 1
+        else: # toggle vote
+           assert new_state.n_yes_votes = state.n_yes_votes - 1
+           assert new_state.n_no_votes = state.n_no_votes + 1 
+        end
     end
 
     # Update the state.
@@ -210,8 +236,8 @@ func main{
 
     # Squash the dict.
     let (squashed_dict_start, squashed_dict_end) = dict_squash(
-        dict_accesses_start=state.public_key_tree_start,
-        dict_accesses_end=state.public_key_tree_end,
+        dict_accesses_start=state.vote_tree_start,
+        dict_accesses_end=state.vote_tree_end,
     )
     local range_check_ptr = range_check_ptr
 
@@ -225,8 +251,8 @@ func main{
     )
 
     # Write the Merkle roots to the output.
-    assert output.public_keys_root_before = root_before
-    assert output.public_keys_root_after = root_after
+    assert output.vote_root_before = root_before
+    assert output.vote_root_after = root_after
 
     return ()
 end

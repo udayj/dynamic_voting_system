@@ -14,9 +14,9 @@
     "votes": [
         {
             "voter_id": 3,
-            "vote": 1,
-            "r": "0x3c7f5daf59bba799d118a8f0d55f32e30b41dd54a74082c59de3d5ccc7d4502",
-            "s": "0x5dadb5dbaeb597eccec977fb3f3ee9cedf69de3615b25e0439878ec61e7e000"
+            "vote": 2,
+            "r": "0x189f1c692cf14905784a566f2c49c058ec56e64e54217cee53f9ac26fad289e",
+            "s": "0x31c5bcbf9d87ff6a2b9b740704014eb29fe22b4c988c1e89b94d1480cddbcae"
         },
         {
             "voter_id": 5,
@@ -26,21 +26,27 @@
         },
         {
             "voter_id": 8,
+            "vote": 2,
+            "r": "0x671d04479eba8cb1791793cd245830517eef4ad2d5c89ad221697822f680ea6",
+            "s": "0x284df030057fab56975a277204ff55c1e595fd2d5fefa679267d5a9a280745e"
+        },
+        {
+            "voter_id": 6,
             "vote": 1,
-            "r": "0x6b50ff670bf6cf8d867157445cedb1748766971804a79391e8af9d98c95d834",
-            "s": "0x5465b35c1bf4b11ac91e9f7a639c647ce653270a9e413375b9e6b9169101c1a"
+            "r": "0x6ab18ae5b422a4296ad4299b0f15be290353ae092f8f08463c36d8436d0a6f0",
+            "s": "0x30369c9b8b5d99b4e56c0d82f21053425a50aa7ec1754f8f05db6616184d88f"
         }
     ],
     "prev_state": [
         0,
         0,
         0,
+        1,
+        0,
+        2,
         0,
         0,
-        0,
-        0,
-        0,
-        0,
+        1,
         0
     ]
 }
